@@ -2,8 +2,9 @@
 #define NODE_H
 
 #define PORT 8080
+#ifndef NUMGPU
 #define NUMGPU 1
-
+#endif
 
 enum IPCCommand {
     NODE_CONNECT,

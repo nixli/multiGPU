@@ -118,6 +118,7 @@ int test(){
 int main(){
     int masterfd=0;
     sockaddr_in* sock = create_master_server(masterfd);
+    std::cout << "waiting for " << NUMGPU << " devices to connect\n";
     for(int i =0; i < NUMGPU; ++i)
       accept_node(sock, masterfd);
     for (int i = 0; i < 10; ++i)

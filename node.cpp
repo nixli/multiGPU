@@ -21,6 +21,8 @@
 #include "ipc.h"
 #include <matrix.h>
 
+static int device =0;
+
 using namespace std;
 void
 matrixMulCPU(float *C, const float *A, const float *B, unsigned int hA, unsigned int wA, unsigned int wB)
@@ -42,9 +44,9 @@ matrixMulCPU(float *C, const float *A, const float *B, unsigned int hA, unsigned
 }
 
 
-#define X 1000
-#define Y 1000
-#define Z 1000
+#define X 2000
+#define Y 2000
+#define Z 2000
 #undef VERIFY
 
 Matrix A(X, Y, false, 2);
@@ -59,6 +61,7 @@ int launch_kernel(){
   const float alpha = 1.0f;
   const float beta  = 0.0f;
 
+  cudaSetDevice(device);
   cudaEvent_t stop;
   checkCudaErrors(cudaEventCreate(&stop));
 
@@ -135,7 +138,7 @@ int connect_to_master(){
       return -1;
     }
 
-    std::cout << "Connection accepted for GPU 0\n"; 
+    std::cout << "Connection accepted for GPU " << device << " \n"; 
     return sockfd; 
 }
 
@@ -162,8 +165,18 @@ int send_fin(int sockfd){
 }
 
 
-int main(){
+int main(int argc, char* argv[]){
+    if (argc < 2){
+      printf("Please provide a GPU device\n");
+      return 1;
+    }
+    if (atoi(argv[1]) < 0){
+      printf("Invalid argument\n");
+      return 1;
+    }
+    device = atoi(argv[1]);
     int node_socket = connect_to_master();
     main_event_loop(node_socket);
     send_fin(node_socket);
+    return 0;
 }
