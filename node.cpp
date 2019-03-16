@@ -44,9 +44,6 @@ matrixMulCPU(float *C, const float *A, const float *B, unsigned int hA, unsigned
 }
 
 
-#define X 2000
-#define Y 2000
-#define Z 2000
 #undef VERIFY
 
 Matrix A(X, Y, false, 2);
@@ -138,19 +135,24 @@ int connect_to_master(){
       return -1;
     }
 
-    std::cout << "Connection accepted for GPU " << device << " \n"; 
+    std::cout << "Connection accepted for GPU " << device << ", socket fd is: " << sockfd<< " \n"; 
     return sockfd; 
 }
 
 void main_event_loop(int socketfd) { 
-    IPCCommand from_master, to_master;
-    int val_read = read(socketfd, &from_master, sizeof(IPCCommand));
-    while (val_read >0 && from_master != MASTER_NODE_SHUTDOWN){
-      launch_kernel();
-      to_master = NODE_OUTPUT_AVAILABLE;
-      send(socketfd, &to_master, sizeof(IPCCommand),0);
-      val_read = read(socketfd, &from_master, sizeof(IPCCommand));
-    }
+    data_block_t from_master, to_master;
+    int val_read = read(socketfd, &from_master, sizeof(data_block_t));
+    while (val_read >0 && from_master.cmd != MASTER_NODE_SHUTDOWN){
+      if(from_master.cmd == MASTER_INPUT_AVAILABLE){
+        // TODO: launch kernel should take an integer parameter used to create the shared memeory name
+        launch_kernel();
+        to_master.cmd = NODE_OUTPUT_AVAILABLE;
+        to_master.identifier = from_master.identifier;
+
+        send(socketfd, &to_master, sizeof(data_block_t),0);
+        val_read = read(socketfd, &from_master, sizeof(data_block_t));
+      }
+   }
 }
 
 

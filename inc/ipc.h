@@ -6,6 +6,10 @@
 #define NUMGPU 1
 #endif
 
+#define X 3000
+#define Y 3000
+#define Z 3000
+
 enum IPCCommand {
     NODE_CONNECT,
     MASTER_ACK,
@@ -14,5 +18,13 @@ enum IPCCommand {
     MASTER_NODE_SHUTDOWN,
     NODE_KERNEL_ERR
 };
+
+
+// this is the container for transfering data to and from
+// the master and worker nodes. 
+typedef struct data_block{
+  IPCCommand cmd;
+  int identifier;
+} data_block_t;
 
 #endif
