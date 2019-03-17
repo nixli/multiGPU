@@ -54,10 +54,10 @@ def terminate_aws(connection, instanceID):
                 print("instance already terminated")
                 exit(0)
 
-    print("not instance matches the id provided")
+    print("No instance matches the id provided")
     exit(-2)
 
-def deploy_aws(connection):
+def deploy_aws(connection, it, ai):
 
 
     if os.path.exists("./multiGPU.pem"):
@@ -67,7 +67,7 @@ def deploy_aws(connection):
     #save this permission under the current derectory, not committed
     ssh_key_pair.save('./')
     os.chmod("./multiGPU.pem", int('400', base=8))
-    print "\ncreated a permission file for your instance, saved in the current directory"
+    print "\nCreated a permission file for your instance, saved in the current directory"
 
     try:
         x = connection.get_all_security_groups(groupnames=['multiGPU_deploy'])
@@ -79,12 +79,11 @@ def deploy_aws(connection):
           security_group.authorize(ip_protocol='TCP', from_port=22, to_port=22, cidr_ip='0.0.0.0/0')
           security_group.authorize(ip_protocol='TCP', from_port=80, to_port=80, cidr_ip='0.0.0.0/0')
 
-    print "created/retrived a security group for your instance with id: ", security_group.id
-    print "creating instance..."
+    print "Created/retrived a security group for your instance with id: ", security_group.id
     # create the instance with the parameters we set up, and some addtional options
-    aws_instance = connection.run_instances('ami-0a47106e391391252', min_count=1, max_count=1,
+    aws_instance = connection.run_instances(ai, min_count=1, max_count=1,
                   key_name='multiGPU', security_groups=['multiGPU_deploy'],
-                  addressing_type=None, instance_type='p2.8xlarge', placement=None,
+                  addressing_type=None, instance_type=it, placement=None,
                   kernel_id=None, ramdisk_id=None, monitoring_enabled=True, subnet_id=None,
                   block_device_map=None, disable_api_termination=False, instance_initiated_shutdown_behavior=None,
                   private_ip_address=None, placement_group=None, client_token=None, security_group_ids=[security_group.id],
@@ -93,6 +92,8 @@ def deploy_aws(connection):
 
     # now we need to assign a static ip to the instance
     running_instance=aws_instance.instances[0]
+    print "\n Instance ID: ", running_instance.id
+    print "Creating instance..."
     while running_instance.state_code!=16:
         print ". ",
         sys.stdout.flush()
@@ -100,7 +101,6 @@ def deploy_aws(connection):
         running_instance.update()
 
     print "\nDone!\nDNS Name: ", running_instance.public_dns_name
-    print "\n Instance ID: ", running_instance.id
     return running_instance.id
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Script to launch aws instance and terminate easily')
@@ -117,7 +117,14 @@ if __name__ == "__main__":
     parser.add_argument('--instance', dest='instance', default=None,
                     help='Instance ID to terminate if --terminate is set')
 
+    parser.add_argument('--instance-type', dest='instance_type', type=str, default='t2.micro', 
+                    help = 'The type of instance, defaul is t2.micro')
+
+    parser.add_argument('--ami', dest='ami_id', type=str, default='ami-02bcbb802e03574ba', 
+                    help = 'The ami id of the instnce, defaul is Amazon Linux 2 AMI (HVM), SSD Volume Type"ami-02bcbb802e03574ba"')
+
     args = parser.parse_args()
+
     if args.terminate and not args.instance:
         print "Please provide an instance to terminate"
         exit(-1)
@@ -125,4 +132,4 @@ if __name__ == "__main__":
     if args.terminate:
         terminate_aws(connection, args.instance)
     else:
-        deploy_aws(connection)
+        deploy_aws(connection, args.instance_type, args.ami_id) 

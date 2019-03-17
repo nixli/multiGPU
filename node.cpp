@@ -13,6 +13,9 @@
 #include <chrono>
 #include <sys/ipc.h> 
 #include <sys/shm.h> 
+#include <sys/mman.h>
+#include <sys/stat.h>        
+#include <fcntl.h>   
 
 #include "cuda_runtime.h"
 #include <cublas_v2.h>
@@ -22,7 +25,7 @@
 #include <matrix.h>
 
 static int device =0;
-
+#define MAX_SMH_NAME_LEN
 using namespace std;
 void
 matrixMulCPU(float *C, const float *A, const float *B, unsigned int hA, unsigned int wA, unsigned int wB)
@@ -50,7 +53,33 @@ Matrix A(X, Y, false, 2);
 Matrix B(Y, Z, false, 2);
 Matrix C(X,Z);
 
-int launch_kernel(){
+
+float* create_shmm(id){
+
+  std::stringstream ss;
+  ss << "/tmp/gpu_" << id;
+  char* shm_name = ss.str().c_str();
+  int shm_fd = shm_open(shm_name, O_CREAT | O_RDWR, 0644);
+  if (shm_fd <0){
+    std::cout << "Error, failed to create shared memory\n";
+    exit(-1);
+  }
+
+//  int shmid = shmget(key, X*Z*sizeof(float), 0660 | IPC_CREAT); 
+//  if(shmid < 0){
+//    std::cout << "Error, failed to open shared momory, ErrorNO: " << errno << std::endl;
+//    exit(-1);
+//  }
+
+  float *data = (float*) mmap(NULL, X*Z*sizeof(float), PROT_READ|PROT_WRITE, MAP_SHARED, shm_fd, 0);
+  if (data == (void*)-1){
+    std::cout << "Failed to map memory to the current address space\n";
+    exit(-1);
+  }
+  return data;
+
+}
+int launch_kernel(int identifier){
 
   A.toCUDA();
   B.toCUDA();
@@ -69,15 +98,8 @@ int launch_kernel(){
   checkCudaErrors(cudaEventRecord(stop, NULL));
   checkCudaErrors(cudaEventSynchronize(stop));
 
-  // create shared memory
-  key_t key = ftok("res",1234);
-  int shmid = shmget(key, X*Z*sizeof(float), 0660 | IPC_CREAT); 
-  if(shmid < 0){
-    std::cout << "Error, failed to open shared momory, ErrorNO: " << errno << std::endl;
-    exit(-1);
-  }
-
-  float *data = (float*) shmat(shmid,(void*)0,0); 
+  float* data = create_shmm(identifier);
+  // float *data = (float*) shmat(shmid,(void*)0,0); 
   // copy device memory to shared memory
   C.fromCUDA(data);
 
@@ -87,7 +109,9 @@ int launch_kernel(){
   std::cout << "CPU IS DONE ! " << std::endl;
   std::cout << "ret val is: " <<cudaGetLastError() << " and the answer is: " << C.verify() << std::endl;;
 #endif
-  shmdt(data);
+  munmap(data,  X*Z*sizeof(float));
+  close(shm_fd);
+  // shmdt(data);
 
   A.freeDeviceMem();
   B.freeDeviceMem();
@@ -145,7 +169,7 @@ void main_event_loop(int socketfd) {
     while (val_read >0 && from_master.cmd != MASTER_NODE_SHUTDOWN){
       if(from_master.cmd == MASTER_INPUT_AVAILABLE){
         // TODO: launch kernel should take an integer parameter used to create the shared memeory name
-        launch_kernel();
+        launch_kernel( from_master.identifier);
         to_master.cmd = NODE_OUTPUT_AVAILABLE;
         to_master.identifier = from_master.identifier;
 

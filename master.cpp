@@ -95,6 +95,24 @@ int accept_node(sockaddr_in *address, int masterfd){
     return new_socket;
 }
 
+float* fetch_returned_data(int id){
+
+  std::stringstream ss;
+  ss << "/tmp/gpu_" << id;
+  char* node_shm_name = ss.str().c_str();
+
+  int shm_fd = shm_open(shm_name,  O_RDONLY, 0644);
+  if (shm_fd < 0) {
+    std::cout << "Failed to open shared memory object from the host!\n";
+    exit(-1);	
+  }
+  float* data = (float*) mmap(NULL, X*Z*sizeof(float), PROT_READ, MAP_SHARED, shm_fd, 0); 
+  if (data == (void*)-1) {
+    std::cout << "Failed to map memory on the master\n";
+  } 
+  return data; 
+}
+
 int send_one_round_of_inputs(){
 
     fd_set select_fds, select_fds_main;
@@ -129,7 +147,8 @@ int send_one_round_of_inputs(){
  
     while(r_back < NUM_RESULTS_REQUIRED ){
         std::cout << "waiting for " <<  NUM_RESULTS_REQUIRED - r_back  << " / " << NUM_RESULTS_REQUIRED << " results...\n" << std::endl;
-        select_fds = select_fds_main;
+        // reset select queue
+	select_fds = select_fds_main;
         
         int fd_back = select(max_fd+1, &select_fds, NULL, NULL, NULL);
         if (fd_back < 0){
@@ -144,11 +163,12 @@ int send_one_round_of_inputs(){
             int val_read = read(nodes[fd_id], &result, sizeof(result));
             if(val_read >0 && result.cmd==NODE_OUTPUT_AVAILABLE){
               std::cout << "SUCCESS, GPU computation finished on worker " << result.identifier <<std::endl;
-              key_t key = ftok("res",1234);            
-              int shmid = shmget(key, X*Z*sizeof(float), 0660|IPC_CREAT); 
-              float *data = (float*) shmat(shmid,(void*)0,0); 
+              float* result = fetch_returned_data(result.identifer);
+	      // key_t key = ftok("res",1234);            
+              // int shmid = shmget(key, X*Z*sizeof(float), 0660|IPC_CREAT); 
+              // float *data = (float*) shmat(shmid,(void*)0,0); 
+              // shmctl(shmid,IPC_RMID,NULL); 
               r_back++;
-              shmctl(shmid,IPC_RMID,NULL); 
             }
           }
         }
