@@ -6,9 +6,9 @@
 #define NUMGPU 1
 #endif
 
-#define X 3000
-#define Y 3000
-#define Z 3000
+#define X 3
+#define Y 30
+#define Z 30
 
 enum IPCCommand {
     NODE_CONNECT,

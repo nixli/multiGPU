@@ -4,10 +4,10 @@ CFLAGS=-Wall
 INC := ./inc
 NUMGPU?=1
 node: node.cpp ${inc}/*
-	$(NVCC) node.cpp -std=c++11 -lcublas -I$(INC) -o node
+	$(NVCC) node.cpp -std=c++11 -lcublas -I$(INC) -lrt -o node
 
 master: master.cpp ${inc}/*
-	$(CC) master.cpp -I$(INC)  -DNUMGPU=$(NUMGPU) -o master
+	$(CC) master.cpp -I$(INC)  -DNUMGPU=$(NUMGPU) -lrt -o master
 
 kernel: node.cu ${inc}/*
 	$(NVCC) node.cu -std=c++11 -I$(INC) -o node_kernel -DGPU

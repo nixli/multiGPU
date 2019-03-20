@@ -5,11 +5,13 @@
 #include <netinet/in.h> 
 #include <string.h> 
 #include <iostream>
-
+#include <fcntl.h>    /* For O_RDWR */
 #include <sys/ipc.h> 
 #include <sys/shm.h> 
 #include "ipc.h"
-
+#include <sstream>
+#include <sys/mman.h>
+#include <sys/stat.h> 
 #undef VERIFY
 
 #define NUM_RESULTS_REQUIRED (NUMGPU/2+1)
@@ -98,10 +100,10 @@ int accept_node(sockaddr_in *address, int masterfd){
 float* fetch_returned_data(int id){
 
   std::stringstream ss;
-  ss << "/tmp/gpu_" << id;
-  char* node_shm_name = ss.str().c_str();
+  ss << "/gpu_" << id;
+  const char* node_shm_name = ss.str().c_str();
 
-  int shm_fd = shm_open(shm_name,  O_RDONLY, 0644);
+  int shm_fd = shm_open(node_shm_name,  O_RDONLY, 0644);
   if (shm_fd < 0) {
     std::cout << "Failed to open shared memory object from the host!\n";
     exit(-1);	
@@ -163,11 +165,17 @@ int send_one_round_of_inputs(){
             int val_read = read(nodes[fd_id], &result, sizeof(result));
             if(val_read >0 && result.cmd==NODE_OUTPUT_AVAILABLE){
               std::cout << "SUCCESS, GPU computation finished on worker " << result.identifier <<std::endl;
-              float* result = fetch_returned_data(result.identifer);
+              float* result_data = fetch_returned_data(result.identifier);
 	      // key_t key = ftok("res",1234);            
               // int shmid = shmget(key, X*Z*sizeof(float), 0660|IPC_CREAT); 
               // float *data = (float*) shmat(shmid,(void*)0,0); 
               // shmctl(shmid,IPC_RMID,NULL); 
+#define _DEBUG
+#ifdef _DEBUG
+          for(int j =0; j < X*Z; ++j){
+            std::cout << result_data[j] <<" ";
+          } 
+#endif
               r_back++;
             }
           }

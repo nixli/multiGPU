@@ -1,4 +1,3 @@
-#include <unistd.h> 
 #include <sys/socket.h> 
 #include <stdlib.h> 
 #include <netinet/in.h> 
@@ -15,14 +14,16 @@
 #include <sys/shm.h> 
 #include <sys/mman.h>
 #include <sys/stat.h>        
-#include <fcntl.h>   
-
+#include <unistd.h>   /* For open(), creat() */
+#include <fcntl.h>
 #include "cuda_runtime.h"
 #include <cublas_v2.h>
 #include "helper_cuda.h"
 #include <thread>
 #include "ipc.h"
-#include <matrix.h>
+#include "matrix.h"
+#include <sys/mman.h>
+#include <sstream>
 
 static int device =0;
 #define MAX_SMH_NAME_LEN
@@ -54,14 +55,14 @@ Matrix B(Y, Z, false, 2);
 Matrix C(X,Z);
 
 
-float* create_shmm(id){
+float* create_shmm(int id, int &shm_fd){
 
   std::stringstream ss;
-  ss << "/tmp/gpu_" << id;
-  char* shm_name = ss.str().c_str();
-  int shm_fd = shm_open(shm_name, O_CREAT | O_RDWR, 0644);
+  ss << "/gpu_" << id;
+  const char* shm_name = ss.str().c_str();
+  shm_fd = shm_open(shm_name, O_CREAT | O_RDWR, 0644);
   if (shm_fd <0){
-    std::cout << "Error, failed to create shared memory\n";
+    std::cout << "Error, failed to create shared memory, error: " << strerror(errno) <<" \n";
     exit(-1);
   }
 
@@ -70,12 +71,14 @@ float* create_shmm(id){
 //    std::cout << "Error, failed to open shared momory, ErrorNO: " << errno << std::endl;
 //    exit(-1);
 //  }
-
-  float *data = (float*) mmap(NULL, X*Z*sizeof(float), PROT_READ|PROT_WRITE, MAP_SHARED, shm_fd, 0);
+  const size_t size = X*Z*sizeof(float); 
+  int rc = ftruncate(shm_fd, size);
+  float *data = (float*) mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_SHARED, shm_fd, 0);
   if (data == (void*)-1){
     std::cout << "Failed to map memory to the current address space\n";
     exit(-1);
   }
+  std::cout << "mapped shared memory " << std::endl;
   return data;
 
 }
@@ -93,12 +96,15 @@ int launch_kernel(int identifier){
 
   cublasHandle_t handle;
   checkCudaErrors(cublasCreate(&handle));
-  checkCudaErrors(cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, X, Y, Z, &alpha, A.data_cuda, X, B.data_cuda, Y, &beta, C.data_cuda, Z));
-
-  checkCudaErrors(cudaEventRecord(stop, NULL));
-  checkCudaErrors(cudaEventSynchronize(stop));
-
-  float* data = create_shmm(identifier);
+  checkCudaErrors(cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N,\
+                   X, Y, Z, &alpha, \
+                   A.data_cuda, X, B.data_cuda, Y, &beta, C.data_cuda, Z));
+  cudaDeviceSynchronize();
+//  checkCudaErrors(cudaEventRecord(stop, NULL));
+//  checkCudaErrors(cudaEventSynchronize(stop));
+  
+  int shm_fd;
+  float* data = create_shmm(identifier, shm_fd);
   // float *data = (float*) shmat(shmid,(void*)0,0); 
   // copy device memory to shared memory
   C.fromCUDA(data);
