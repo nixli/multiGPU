@@ -98,7 +98,7 @@ int launch_kernel(int identifier){
   checkCudaErrors(cublasCreate(&handle));
   checkCudaErrors(cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N,\
                    X, Y, Z, &alpha, \
-                   A.data_cuda, X, B.data_cuda, Y, &beta, C.data_cuda, Z));
+                   A.data_cuda, Y, B.data_cuda, Y, &beta, C.data_cuda, X));
   cudaDeviceSynchronize();
 //  checkCudaErrors(cudaEventRecord(stop, NULL));
 //  checkCudaErrors(cudaEventSynchronize(stop));
@@ -114,6 +114,24 @@ int launch_kernel(int identifier){
   matrixMulCPU(C.data_cpu, A.data_cpu, B.data_cpu, X, Y, Z);
   std::cout << "CPU IS DONE ! " << std::endl;
   std::cout << "ret val is: " <<cudaGetLastError() << " and the answer is: " << C.verify() << std::endl;;
+
+  
+          for(int j =0; j < X; ++j){
+            for (int k =0; k < Z; ++k)
+              std::cout << data[j*Z + k] <<" ";
+            std::cout << std::endl;
+          }
+          for(int j =0; j < X; ++j){
+            for (int k =0; k < Y; ++k)
+              std::cout << A.data_cpu[j*Z + k] <<" ";
+            std::cout << std::endl;
+          }
+          std::cout << "\n\n" <<std::endl;
+          for(int j =0; j < Y; ++j){
+            for (int k =0; k < Z; ++k)
+              std::cout << B.data_cpu[j*Z + k] <<" ";
+            std::cout << std::endl;
+          }
 #endif
   munmap(data,  X*Z*sizeof(float));
   close(shm_fd);

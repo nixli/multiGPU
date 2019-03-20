@@ -170,11 +170,12 @@ int send_one_round_of_inputs(){
               // int shmid = shmget(key, X*Z*sizeof(float), 0660|IPC_CREAT); 
               // float *data = (float*) shmat(shmid,(void*)0,0); 
               // shmctl(shmid,IPC_RMID,NULL); 
-#define _DEBUG
 #ifdef _DEBUG
-          for(int j =0; j < X*Z; ++j){
-            std::cout << result_data[j] <<" ";
-          } 
+          for(int j =0; j < X; ++j){
+            for (int k =0; k < Z; ++k)
+              std::cout << result_data[j*Z + k] <<" ";
+            std::cout << std::endl;
+          }
 #endif
               r_back++;
             }
