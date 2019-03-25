@@ -31,7 +31,6 @@ struct Matrix {
   }
   // transfers data to the device, also allocates memoey
   void toCUDA(){
-    assert(cudaMalloc((float**)&data_cuda, row_dim*col_dim*sizeof(float)) == cudaSuccess);
     cudaError_t result = cudaMemcpy(data_cuda, data_cpu, row_dim*col_dim*sizeof(float), cudaMemcpyHostToDevice);
     assert(result==cudaSuccess);
   }

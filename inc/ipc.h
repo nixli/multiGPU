@@ -1,5 +1,5 @@
-#ifndef NODE_H
-#define NODE_H
+#ifndef IPC_H
+#define IPC_H
 
 #define PORT 8080
 #ifndef NUMGPU
@@ -27,4 +27,4 @@ typedef struct data_block{
   int identifier;
 } data_block_t;
 
-#endif
+#endif  // IPC_H

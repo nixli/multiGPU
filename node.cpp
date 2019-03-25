@@ -9,7 +9,6 @@
 #include "stdio.h"
 #include <assert.h>
 #include <iomanip>
-#include <chrono>
 #include <sys/ipc.h> 
 #include <sys/shm.h> 
 #include <sys/mman.h>
@@ -25,7 +24,6 @@
 #include <sys/mman.h>
 #include <sstream>
 
-static int device =0;
 #define MAX_SMH_NAME_LEN
 using namespace std;
 void
@@ -50,9 +48,6 @@ matrixMulCPU(float *C, const float *A, const float *B, unsigned int hA, unsigned
 
 #undef VERIFY
 
-Matrix A(X, Y, false, 2);
-Matrix B(Y, Z, false, 2);
-Matrix C(X,Z);
 
 
 float* create_shmm(int id, int &shm_fd){
@@ -84,25 +79,44 @@ float* create_shmm(int id, int &shm_fd){
 }
 int launch_kernel(int identifier){
 
+  // initialize random matrix
+  Matrix A(X, Y, false);
+  Matrix B(Y, Z, false);
+  Matrix C(X,Z);
+  DEBUG(std::cout<<"matrix generated, ready to work on the device\n");
+  A.cuda_malloc();
+  B.cuda_malloc();
+  C.cuda_malloc();
+  DEBUG_PRINT(std::cout<<"starting to work on the device side of things\n");
+  auto start = NOW();
+  // coopy memory to cuda device
   A.toCUDA();
   B.toCUDA();
-  C.cuda_malloc();
+  auto end = NOW();
+  DEBUG_PRING(std::cout<<"time for copying data to device: " << DIFF_T(end, start) <<std::endl);
+
   const float alpha = 1.0f;
   const float beta  = 0.0f;
-
-  cudaSetDevice(device);
-  cudaEvent_t stop;
+  cudaEvent_t stop, start;
+  checkCudaErrors(cudaEventCreate(&start));
   checkCudaErrors(cudaEventCreate(&stop));
+
+  checkCudaErrors(cudaEventRecord(start));
 
   cublasHandle_t handle;
   checkCudaErrors(cublasCreate(&handle));
   checkCudaErrors(cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N,\
                    X, Y, Z, &alpha, \
                    A.data_cuda, Y, B.data_cuda, Y, &beta, C.data_cuda, X));
-  cudaDeviceSynchronize();
-//  checkCudaErrors(cudaEventRecord(stop, NULL));
-//  checkCudaErrors(cudaEventSynchronize(stop));
-  
+  // since we are calling stop after the blas call, just call event synchronize
+  checkCudaErrors(cudaEventRecord(stop, NULL));
+  checkCudaErrors(cudaEventSynchronize(stop));
+
+  float device_mil = 0;
+  cudaEventElapsedTime(&device_mil, start, stop); 
+  DEBUG_PRINT(std::cout<<"time taken on device: " << device_mil << std::endl);
+
+  DEBUG_PRINT() 
   int shm_fd;
   float* data = create_shmm(identifier, shm_fd);
   // float *data = (float*) shmat(shmid,(void*)0,0); 
@@ -187,14 +201,17 @@ int connect_to_master(){
     return sockfd; 
 }
 
-void main_event_loop(int socketfd) { 
+void main_event_loop(int socketfd) {
+
     data_block_t from_master, to_master;
     int val_read = read(socketfd, &from_master, sizeof(data_block_t));
     while (val_read >0 && from_master.cmd != MASTER_NODE_SHUTDOWN){
-      if(from_master.cmd == MASTER_INPUT_AVAILABLE){
-        // TODO: launch kernel should take an integer parameter used to create the shared memeory name
-        launch_kernel( from_master.identifier);
-        to_master.cmd = NODE_OUTPUT_AVAILABLE;
+      if (from_master.cmd == MASTER_INPUT_AVAILABLE) {
+
+	// this launches a call to CUBLAS      
+       	launch_kernel( from_master.identifier);
+
+	to_master.cmd = NODE_OUTPUT_AVAILABLE;
         to_master.identifier = from_master.identifier;
 
         send(socketfd, &to_master, sizeof(data_block_t),0);
@@ -224,7 +241,8 @@ int main(int argc, char* argv[]){
       printf("Invalid argument\n");
       return 1;
     }
-    device = atoi(argv[1]);
+    int device = atoi(argv[1]);
+    cudaSetDevice(device);
     int node_socket = connect_to_master();
     main_event_loop(node_socket);
     send_fin(node_socket);
