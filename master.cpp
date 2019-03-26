@@ -11,7 +11,8 @@
 #include "ipc.h"
 #include <sstream>
 #include <sys/mman.h>
-#include <sys/stat.h> 
+#include <sys/stat.h>
+#include "utils.h"
 #undef VERIFY
 
 #define NUM_RESULTS_REQUIRED (NUMGPU/2+1)
@@ -163,7 +164,7 @@ int send_one_round_of_inputs(){
               continue;
             data_block_t result;
             int val_read = read(nodes[fd_id], &result, sizeof(result));
-            if(val_read >0 && result.cmd==NODE_OUTPUT_AVAILABLE){
+            if( val_read >0 && result.cmd==NODE_OUTPUT_AVAILABLE){
               std::cout << "SUCCESS, GPU computation finished on worker " << result.identifier <<std::endl;
               float* result_data = fetch_returned_data(result.identifier);
 	      // key_t key = ftok("res",1234);            
@@ -217,6 +218,10 @@ int main(){
     // Note that the master will not start issueing command until it gets enough node connections
     for(int i =0; i < NUMGPU; ++i)
       accept_node(sock, masterfd);
-
-    send_one_round_of_inputs();
+  while (1){
+  auto start = NOW();
+  send_one_round_of_inputs();
+  auto end  = NOW();
+  DEBUG_PRINT(std::cout << "kernel launch in total took: " << DIFF_T(start, end) << " milliseconds" << std::endl; )
+  }
 }

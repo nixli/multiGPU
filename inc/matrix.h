@@ -26,6 +26,9 @@ struct Matrix {
     }
     host_mem_shared = false;
   }
+  ~Matrix() {
+    free(data_cpu);
+  }
   void cuda_malloc(){
     assert(cudaMalloc((float**)&data_cuda, row_dim*col_dim*sizeof(float)) == cudaSuccess);
   }

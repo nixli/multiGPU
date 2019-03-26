@@ -23,7 +23,7 @@
 #include "matrix.h"
 #include <sys/mman.h>
 #include <sstream>
-
+#include "utils.h"
 #define MAX_SMH_NAME_LEN
 using namespace std;
 void
@@ -73,7 +73,7 @@ float* create_shmm(int id, int &shm_fd){
     std::cout << "Failed to map memory to the current address space\n";
     exit(-1);
   }
-  std::cout << "mapped shared memory " << std::endl;
+  DEBUG_PRINT(std::cout << "mapped shared memory " << std::endl);
   return data;
 
 }
@@ -83,17 +83,17 @@ int launch_kernel(int identifier){
   Matrix A(X, Y, false);
   Matrix B(Y, Z, false);
   Matrix C(X,Z);
-  DEBUG(std::cout<<"matrix generated, ready to work on the device\n");
+  DEBUG_PRINT(std::cout<<"matrix generated, ready to work on the device\n");
   A.cuda_malloc();
   B.cuda_malloc();
   C.cuda_malloc();
   DEBUG_PRINT(std::cout<<"starting to work on the device side of things\n");
-  auto start = NOW();
+  auto start_time = NOW();
   // coopy memory to cuda device
   A.toCUDA();
   B.toCUDA();
   auto end = NOW();
-  DEBUG_PRING(std::cout<<"time for copying data to device: " << DIFF_T(end, start) <<std::endl);
+  DEBUG_PRINT(std::cout<<"time for copying data to device: " << DIFF_T(start_time, end) << " milliseconds" << std::endl);
 
   const float alpha = 1.0f;
   const float beta  = 0.0f;
@@ -116,14 +116,16 @@ int launch_kernel(int identifier){
   cudaEventElapsedTime(&device_mil, start, stop); 
   DEBUG_PRINT(std::cout<<"time taken on device: " << device_mil << std::endl);
 
-  DEBUG_PRINT() 
+  DEBUG_PRINT(std::cout << "creating shmm and copying from the device" << std::endl;) 
+  start_time = NOW();
   int shm_fd;
   float* data = create_shmm(identifier, shm_fd);
   // float *data = (float*) shmat(shmid,(void*)0,0); 
   // copy device memory to shared memory
   C.fromCUDA(data);
 
-  std::cout << "GPU IS DONE ! " << std::endl;
+  end = NOW();
+  DEBUG_PRINT(std::cout<<"GPU is done, copying to shm took " << DIFF_T(start_time, end) << " milliseconds" << std::endl);
 #ifdef _DEBUG
   matrixMulCPU(C.data_cpu, A.data_cpu, B.data_cpu, X, Y, Z);
   std::cout << "CPU IS DONE ! " << std::endl;
@@ -197,7 +199,7 @@ int connect_to_master(){
       return -1;
     }
 
-    std::cout << "Connection accepted for GPU " << device << ", socket fd is: " << sockfd<< " \n"; 
+    std::cout << "Connection accepted for GPU, socket fd is: " << sockfd<< " \n"; 
     return sockfd; 
 }
 
