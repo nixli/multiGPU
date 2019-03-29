@@ -77,12 +77,9 @@ float* create_shmm(int id, int &shm_fd){
   return data;
 
 }
-int launch_kernel(int identifier){
+int launch_kernel(int identifier, Matrix &A, Matrix &B, Matrix &C){
 
   // initialize random matrix
-  Matrix A(X, Y, false);
-  Matrix B(Y, Z, false);
-  Matrix C(X,Z);
   DEBUG_PRINT(std::cout<<"matrix generated, ready to work on the device\n");
   A.cuda_malloc();
   B.cuda_malloc();
@@ -205,14 +202,20 @@ int connect_to_master(){
 
 void main_event_loop(int socketfd) {
 
+    Matrix A(X, Y, false);
+    Matrix B(Y, Z, false);
+    Matrix C(X,Z);
     data_block_t from_master, to_master;
     int val_read = read(socketfd, &from_master, sizeof(data_block_t));
     while (val_read >0 && from_master.cmd != MASTER_NODE_SHUTDOWN){
       if (from_master.cmd == MASTER_INPUT_AVAILABLE) {
-
+        
+        auto start = NOW();
 	// this launches a call to CUBLAS      
-       	launch_kernel( from_master.identifier);
+       	launch_kernel( from_master.identifier, A, B, C);
+        auto end = NOW();
 
+        DEBUG_PRINT(std::cout << "worker node one set of computation takes: " << DIFF_T(start, end) << "seconds\n\n" << std::endl);
 	to_master.cmd = NODE_OUTPUT_AVAILABLE;
         to_master.identifier = from_master.identifier;
 

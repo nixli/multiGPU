@@ -181,6 +181,8 @@ int send_one_round_of_inputs(){
               r_back++;
             }
           }
+        } else {
+          break;
         }
     }
 
@@ -212,16 +214,17 @@ int send_one_round_of_inputs(){
 }
 
 int main(){
-    int masterfd=0;
-    sockaddr_in* sock = create_master_server(masterfd);
-    std::cout << "waiting for " << NUMGPU << " devices to connect\n";
-    // Note that the master will not start issueing command until it gets enough node connections
-    for(int i =0; i < NUMGPU; ++i)
-      accept_node(sock, masterfd);
+  int masterfd=0;
+  sockaddr_in* sock = create_master_server(masterfd);
+  // Note that the master will not start issueing command until it gets enough node connections
+  for(int i =0; i < NUMGPU; ++i){
+    std::cout << "waiting for " << NUMGPU -i << " devices to connect\n";
+    accept_node(sock, masterfd);
+  }
   while (1){
-  auto start = NOW();
-  send_one_round_of_inputs();
-  auto end  = NOW();
-  DEBUG_PRINT(std::cout << "kernel launch in total took: " << DIFF_T(start, end) << " milliseconds" << std::endl; )
+    auto start = NOW();
+    send_one_round_of_inputs();
+    auto end  = NOW();
+    DEBUG_PRINT(std::cout << "kernel launch in total took: " << DIFF_T(start, end) << " milliseconds\n\n" << std::endl; )
   }
 }

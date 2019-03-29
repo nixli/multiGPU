@@ -1,6 +1,5 @@
 CC=g++
 NVCC=nvcc
-CFLAGS=-Wall
 INC := ./inc
 STD=-std=c++11 
 NUMGPU?=1
